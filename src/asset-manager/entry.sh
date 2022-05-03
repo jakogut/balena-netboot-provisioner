@@ -47,11 +47,10 @@ mkdir -p "${output_dir}"
 download_balenaos "${fleet_id}" "${api_key}" "${OS_VERSION}"
 
 script_dir="$(readlink -f "$(dirname "${0}")")"
-echo "script_dir: ${script_dir}"
 # shellcheck disable=SC1091
-source "${script_dir}loopback.sh"
+source "${script_dir}/loopback.sh"
 # shellcheck disable=SC1091
-source "${script_dir}initramfs.sh"
+source "${script_dir}/initramfs.sh"
 
 for i in {0..10}; do create_loopback "$i"; done
 loopback_device=$(setup_loopback "${output_dir}/balenaos.img")
