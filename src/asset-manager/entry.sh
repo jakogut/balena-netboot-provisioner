@@ -91,6 +91,17 @@ roota_offset=$(
 
 mount "${dl_path}" -o "offset=$((roota_offset * sector_size))" /mnt
 
+image_path="${output_dir}/balenaos.img"
+# Technically, this test will fail if there is more than one match, but we
+# probably don't have to worry about that
+# shellcheck disable=SC2144
+if [ -f /mnt/opt/*.balenaos-img ]; then
+	echo "Unwrapping flasher image"
+	cp /mnt/opt/*.balenaos-img "${image_path}"
+else
+	echo "Non-flasher image, symlink downloaded.img -> balenaos.img"
+	ln -sf downloaded.img "${image_path}"
+fi
 # signal done
 touch /netboot/.ready
 
