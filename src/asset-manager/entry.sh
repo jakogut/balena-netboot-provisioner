@@ -111,6 +111,6 @@ populate_initramfs "dd curl" "${initramfs_srcdir}" /mnt
 generate_initramfs "${initramfs_srcdir}" "${asset_dir}/${fleet_id}/initramfs.img.gz"
 
 # signal done
-touch /netboot/.ready
+touch /var/tftp/.ready
 
 sleep infinity
