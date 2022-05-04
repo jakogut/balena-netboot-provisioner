@@ -163,12 +163,8 @@ services:
   asset-manager:
     <<: [
       *with-default-volumes,
-      *with-extended-privileges,
-      *with-network-privileges,
-      *with-default-privileges,
       *base-service,
     ]
-    # FIXME: or specify devices: for losetup, etc.
     privileged: true
     build: src/asset-manager
     depends_on:
@@ -177,4 +173,4 @@ services:
       <<: *default-environment
     labels:
       io.balena.features.balena-api: 1
-      io.balena.features.supervisor-api: 1
+
