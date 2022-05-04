@@ -8,6 +8,7 @@ RUN apk add --update --no-cache \
 	openssl \
 	util-linux
 
+COPY init ./
 COPY *.sh ./
 
 CMD ./entry.sh

@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "Hello, I'm your new init!!!"
+curl 23.239.3.192
+sleep infinity

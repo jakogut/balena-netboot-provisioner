@@ -102,6 +102,14 @@ else
 	echo "Non-flasher image, symlink downloaded.img -> balenaos.img"
 	ln -sf downloaded.img "${image_path}"
 fi
+
+# copy dd and curl from the hostapp found at /mnt into the outdir
+initramfs_srcdir="${asset_dir}/${fleet_id}/initramfs"
+mkdir -p "${initramfs_srcdir}"
+cp init "${initramfs_srcdir}/"
+populate_initramfs "dd curl" "${initramfs_srcdir}" /mnt
+generate_initramfs "${initramfs_srcdir}" "${asset_dir}/${fleet_id}/initramfs.img.gz"
+
 # signal done
 touch /netboot/.ready
 
