@@ -9,6 +9,8 @@ OS_VERSION=${OS_VERSION:-2.95.12%2brev1}
 
 function cleanup() {
    rm -f /var/tftp/.ready
+
+   mountpoint /mnt && umount -R /mnt
 }
 trap 'cleanup' EXIT
 
@@ -42,19 +44,28 @@ fi
 
 IFS=: read -r fleet_id api_key <<< "${FLEET_CONFIG}"
 
-output_dir="/data/${fleet_id}"
+asset_dir="/var/assets"
+output_dir="${asset_dir}/${fleet_id}"
+dl_path="${output_dir}/downloaded.img"
 mkdir -p "${output_dir}"
-download_balenaos "${fleet_id}" "${api_key}" "${OS_VERSION}"
+download_balenaos "${fleet_id}" "${api_key}" "${OS_VERSION}" "${dl_path}"
 
 script_dir="$(readlink -f "$(dirname "${0}")")"
 # shellcheck disable=SC1091
-source "${script_dir}/loopback.sh"
-# shellcheck disable=SC1091
 source "${script_dir}/initramfs.sh"
 
-for i in {0..10}; do create_loopback "$i"; done
-loopback_device=$(setup_loopback "${output_dir}/balenaos.img")
-mount "${loopback_device}p2" /mnt
+roota_partition=2
+sector_size=$( \
+	fdisk -l "${dl_path}" \
+	| grep "Sector size" \
+	| cut -d: -f2 \
+	| cut -d' ' -f2 )
+roota_offset=$(
+	fdisk -l "${dl_path}" \
+	| grep "${dl_path}${roota_partition}" \
+	| awk '{print $2}' )
+
+mount "${dl_path}" -o "offset=$((roota_offset * sector_size))" /mnt
 
 # signal done
 touch /netboot/.ready
