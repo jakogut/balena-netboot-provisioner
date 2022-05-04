@@ -114,7 +114,7 @@ services:
       - |
         set -exu
 
-        while ! [ -f /var/tftp/.ready ]; do sleep "$(( (RANDOM % 5) + 5 ))s"; done
+        while ! [ -f /usr/share/nginx/html/.ready ]; do sleep "$(( (RANDOM % 5) + 5 ))s"; done
 
         nginx -g 'daemon off;'
 
