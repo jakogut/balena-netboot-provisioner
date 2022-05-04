@@ -66,7 +66,10 @@ services:
         while ! [ -f /var/tftp/.ready ]; do sleep "$(( (RANDOM % 5) + 5 ))s"; done
 
         dnsmasq \
-          --enable-tftp
+          --conf-file "" \
+          --no-daemon \
+          --port=0 \
+          --enable-tftp \
           --tftp-root=/var/tftp \
           --pxe-service=0,"Raspberry Pi Boot"
 
