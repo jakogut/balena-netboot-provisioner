@@ -6,6 +6,7 @@ volumes:
   certs-data: {}
   pki-data: {}
   netboot-data: {}
+  assets: {}
 
 # (TBC) source from somewhere
 x-default-environment: &default-environment
@@ -17,6 +18,7 @@ x-default-volumes-trait: &with-default-volumes
   volumes:
     - certs-data:/certs
     - netboot-data:/var/tftp
+    - assets:/var/assets
 
 x-default-privileges-trait: &with-default-privileges
   cap_add:
