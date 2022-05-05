@@ -173,6 +173,7 @@ services:
     build: src/asset-manager
     depends_on:
       - cert-manager
+    network_mode: host
     environment:
       <<: *default-environment
     labels:
