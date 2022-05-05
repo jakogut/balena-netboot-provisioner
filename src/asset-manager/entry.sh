@@ -6,6 +6,8 @@ set -eu
 
 BALENA_API_URL=${BALENA_API_URL:-balena-cloud.com}
 OS_VERSION=${OS_VERSION:-2.95.12%2brev1}
+DRY_RUN=${DRY_RUN:-true}
+CLOBBER=${CLOBBER:-false}
 
 function cleanup() {
    rm -f /var/tftp/.ready
@@ -70,26 +72,39 @@ IFS=: read -r fleet_id api_key <<< "${FLEET_CONFIG}"
 
 asset_dir="/var/assets"
 output_dir="${asset_dir}/${fleet_id}"
-dl_path="${output_dir}/downloaded.img"
 mkdir -p "${output_dir}"
+
+dl_path="${output_dir}/downloaded.img"
 download_balenaos "${fleet_id}" "${api_key}" "${OS_VERSION}" "${dl_path}"
 
 script_dir="$(readlink -f "$(dirname "${0}")")"
 # shellcheck disable=SC1091
 source "${script_dir}/initramfs.sh"
 
-roota_partition=2
-sector_size=$( \
-	fdisk -l "${dl_path}" \
-	| grep "Sector size" \
-	| cut -d: -f2 \
-	| cut -d' ' -f2 )
-roota_offset=$(
-	fdisk -l "${dl_path}" \
-	| grep "${dl_path}${roota_partition}" \
-	| awk '{print $2}' )
+mount_image_part() {
+	local image_path=$1
+	local part_number=$2
+	local mountpoint=$3
+	local sector_size
+	local part_offset
+	sector_size=$( \
+		fdisk -l "${image_path}" \
+		| grep "Sector size" \
+		| cut -d: -f2 \
+		| cut -d' ' -f2 )
+	part_offset=$(
+		fdisk -l "${image_path}" \
+		| grep "${image_path}${part_number}" \
+		| awk '{print $2}' )
+	mount "${image_path}" \
+		-o "offset=$((part_offset * sector_size))" \
+		"${mountpoint}"
+}
 
-mount "${dl_path}" -o "offset=$((roota_offset * sector_size))" /mnt
+boot_part=1
+roota_part=2
+mount_image_part "${dl_path}" "${roota_part}" /mnt/
+mount_image_part "${dl_path}" "${boot_part}" /mnt/mnt/boot
 
 image_path="${output_dir}/balenaos.img"
 # Technically, this test will fail if there is more than one match, but we
@@ -103,12 +118,58 @@ else
 	ln -sf downloaded.img "${image_path}"
 fi
 
-# copy dd and curl from the hostapp found at /mnt into the outdir
 initramfs_srcdir="${asset_dir}/${fleet_id}/initramfs"
-mkdir -p "${initramfs_srcdir}"
+mkdir -p "${initramfs_srcdir}"/{bin,dev,etc,lib,proc,root}
+
+local_ip=$(ip route get 1 | awk '{print $NF;exit}')
+nbsrv_domain="netboot.balena.local"
+
+# initialize hosts file
+cat > "${initramfs_srcdir}/etc/hosts" << EOF
+${local_ip} ${nbsrv_domain}
+EOF
+
 cp init "${initramfs_srcdir}/"
-populate_initramfs "dd curl" "${initramfs_srcdir}" /mnt
-generate_initramfs "${initramfs_srcdir}" "${asset_dir}/${fleet_id}/initramfs.img.gz"
+
+# copy ca bundle for TLS
+initramfs_certs_path="${initramfs_srcdir}/etc/ssl/certs"
+mkdir -p "${initramfs_certs_path}"
+cp /certs/ca-bundle.pem "${initramfs_certs_path}/ca-certificates.crt"
+
+utils=(curl)
+
+# copy utilities from the hostapp into initramfs
+populate_initramfs "${utils[@]}" "${initramfs_srcdir}" /mnt
+generate_initramfs "${initramfs_srcdir}" "${output_dir}/initramfs.img.gz"
+
+rm -rf /var/tftp/boot
+
+# Create pxelinux files for x86_64-efi and PC BIOS
+cp -rf /usr/share/syslinux/ /var/tftp/
+
+append=(
+	"initrd=http://${local_ip}/syslinux/efi64/initramfs.img.gz"
+	"ip=:::::eth0:dhcp"
+	"console=ttyS0"
+	"DRY_RUN=${DRY_RUN}"
+	"CLOBBER=${CLOBBER}"
+)
+init_args=(
+	"https://${nbsrv_domain}/${fleet_id}/balenaos.img"
+)
+cat > /var/tftp/syslinux/pxelinux.cfg << EOF
+DEFAULT flasher
+LABEL flasher
+	LINUX http://${local_ip}/syslinux/efi64/bzImage
+	APPEND ${append[@]} -- ${init_args[@]}
+EOF
+
+pxelinux_cfg_dir=/var/tftp/syslinux/efi64/pxelinux.cfg
+mkdir -p "${pxelinux_cfg_dir}"
+ln -sf ../../pxelinux.cfg "${pxelinux_cfg_dir}/default"
+
+cp /mnt/boot/bzImage /var/tftp/syslinux/efi64/
+ln -sf "${output_dir}/initramfs.img.gz" /var/tftp/syslinux/efi64/initramfs.img.gz
 
 # signal done
 touch /var/tftp/.ready

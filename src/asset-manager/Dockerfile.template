@@ -6,7 +6,8 @@ RUN apk add --update --no-cache \
 	curl \
 	jq \
 	openssl \
-	util-linux
+	util-linux \
+	syslinux
 
 COPY init ./
 COPY *.sh ./

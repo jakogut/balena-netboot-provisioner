@@ -1,4 +1,82 @@
 #!/bin/sh
-echo "Hello, I'm your new init!!!"
-curl 23.239.3.192
-sleep infinity
+image_path=$1
+TARGET_DISKS=${TARGET_DISKS:-nvme?n? sd? mmcblk? vd?}
+INSTALL_COUNTDOWN=${INSTALL_COUNTDOWN:-10}
+DRY_RUN=${DRY_RUN:-true}
+CLOBBER=${CLOBBER:-false}
+
+if ! mount -t devtmpfs none /dev; then
+	echo "Failed to mount devtmpfs at /dev w/ $?"
+	exit 1;
+fi
+
+if ! mount -t proc none /proc; then
+	echo "Failed to mount proc at /proc w/ $?"
+	exit 1;
+fi
+
+# https://patorjk.com/software/taag/#p=display&f=Big%20Money-se&t=balenaOS
+cat << 'EOF'
+
+
+ __                  __                                 ______    ______
+|  \                |  \                               /      \  /      \
+| $$____    ______  | $$  ______   _______    ______  |  $$$$$$\|  $$$$$$\
+| $$    \  |      \ | $$ /      \ |       \  |      \ | $$  | $$| $$___\$$
+| $$$$$$$\  \$$$$$$\| $$|  $$$$$$\| $$$$$$$\  \$$$$$$\| $$  | $$ \$$    \
+| $$  | $$ /      $$| $$| $$    $$| $$  | $$ /      $$| $$  | $$ _\$$$$$$\
+| $$__/ $$|  $$$$$$$| $$| $$$$$$$$| $$  | $$|  $$$$$$$| $$__/ $$|  \__| $$
+| $$    $$ \$$    $$| $$ \$$     \| $$  | $$ \$$    $$ \$$    $$ \$$    $$
+ \$$$$$$$   \$$$$$$$ \$$  \$$$$$$$ \$$   \$$  \$$$$$$$  \$$$$$$   \$$$$$$
+
+
+
+EOF
+
+install_disk=""
+for glob in ${TARGET_DISKS}; do
+	echo "Disks matching glob: ${glob}"
+	for f in /dev/${glob}; do
+		if [ "$f" = "/dev/${glob}" ]; then
+			echo "none"
+		else
+			# grab the first matching disk
+			[ -z "${install_disk}" ] && install_disk="$f"
+			echo "$f"
+		fi
+	done
+
+	printf "\n"
+done
+
+if [ -n "${install_disk}" ]; then
+	msg="Installing to disk ${install_disk}"
+	if [ "${DRY_RUN}" = true ]; then
+		msg="${msg} [DRY RUN]"
+		# Remove the device node, just to be sure we don't write to it
+		rm "${install_disk}"
+		[ -f "${install_disk}" ] && exit 1
+		install_disk=/dev/null
+	fi
+
+	echo "${msg}"
+else
+	echo "No matching disk found"
+	exit 1;
+fi
+
+existing_partitions=$(($(grep -c "$(basename "${install_disk}")" /proc/partitions) - 1))
+
+if [ "${existing_partitions}" -gt 0 ] && [ "${CLOBBER}" != "true" ]; then
+	echo "Disk is already partitioned, bailing out"
+	exit 1;
+fi
+
+curl "${image_path}" --progress-bar | dd of="${install_disk}" bs=4096
+
+printf "\nSyncing..." \
+	&& sync \
+	&& printf 'done\n\n'
+
+echo "Install finished, rebooting"
+reboot
