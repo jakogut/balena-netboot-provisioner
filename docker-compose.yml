@@ -69,6 +69,7 @@ services:
           --no-daemon \
           --port=0 \
           --log-dhcp \
+          --dhcp-range="$(ip route | grep default | cut -d' ' -f3)",proxy \
           --enable-tftp \
           --tftp-root=/var/tftp \
           --pxe-service=0,"Raspberry Pi Boot"
