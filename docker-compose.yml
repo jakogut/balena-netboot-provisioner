@@ -68,6 +68,7 @@ services:
           --conf-file "" \
           --no-daemon \
           --port=0 \
+          --log-dhcp \
           --enable-tftp \
           --tftp-root=/var/tftp \
           --pxe-service=0,"Raspberry Pi Boot"
