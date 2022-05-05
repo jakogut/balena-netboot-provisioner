@@ -72,7 +72,9 @@ services:
           --dhcp-range="$(ip route | grep default | cut -d' ' -f3)",proxy \
           --enable-tftp \
           --tftp-root=/var/tftp \
-          --pxe-service=0,"Raspberry Pi Boot"
+          --pxe-service=0,"Raspberry Pi Boot" \
+          --pxe-service=X86-64_EFI,"PXELINUX x86_64-efi",syslinux/efi64/syslinux.efi \
+          --pxe-service=BC_EFI,"PXELINUX x86_64-efi",syslinux/efi64/syslinux.efi
 
     network_mode: host
     depends_on:
