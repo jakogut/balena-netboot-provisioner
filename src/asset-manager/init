@@ -1,4 +1,16 @@
 #!/bin/sh
+# This script runs on the client to install balenaOS
+#
+# DRY_RUN defaults to true, and prevents any modifications from being written
+# to disk. Disable this to write balenaOS for real, destroying any existing
+# data in the process.
+#
+# CLOBBER defaults to false, and prevents existing partition tables from being
+# overwritten by the installer. You probably don't want to disable this, as it
+# prevents data loss in case of booting the installer on a device that's
+# already been provisioned, or a device that's not intended to be installed to.
+# This option can be disabled to force installation to devices with existing
+# partitions and filesystems.
 image_path=$1
 TARGET_DISKS=${TARGET_DISKS:-nvme?n? sd? mmcblk? vd?}
 INSTALL_COUNTDOWN=${INSTALL_COUNTDOWN:-10}
