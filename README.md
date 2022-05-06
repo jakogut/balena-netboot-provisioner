@@ -15,7 +15,7 @@ For example:
 FLEET_CONFIG=[appId]:[apiKey];[appId]:[apiKey]
 ```
 
-Only one appId per device type must be specified. If more than one fleet is being provisioned with the same device type, you'll need to switch your netboot server over from one fleet to the other, or setup multiple netboot servers on indepenent networks.
+Only one appId per device type must be specified. If more than one fleet is being provisioned with the same device type, you'll need to switch your netboot server over from one fleet to the other, or setup multiple netboot servers on independent networks.
 
 Upon startup, the netboot server application will download a configured image for the fleet you've specified, extract the kernel from it, and build an initramfs to install the image. The original kernel from the balenaOS release matching your device is used to ensure the required drivers are present.
 
