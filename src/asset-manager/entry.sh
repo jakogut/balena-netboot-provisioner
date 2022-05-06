@@ -114,6 +114,14 @@ mount_image_part "${dl_path}" "${boot_part}" /mnt/
 
 device_type="$(jq -r '.slug' /mnt/boot/device-type.json || true)"
 flasher="$( if [ -f /mnt/balena-image-flasher ]; then echo true; else echo false; fi )"
+case "${device_type}" in
+	fincm3)
+		# copy Pi firmware
+		cp -rf /mnt/* /var/tftp/
+		;;
+	*)
+		;;
+esac
 
 initramfs_srcdir="${asset_dir}/${fleet_id}/initramfs"
 mkdir -p "${initramfs_srcdir}"/{bin,boot,dev,etc,lib,mnt,proc,root}
