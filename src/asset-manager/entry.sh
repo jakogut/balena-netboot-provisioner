@@ -37,7 +37,7 @@ download_balenaos() {
 		--data "fileType=${filetype}"
 		--data "appId=${fleet_id}"
 	)
-	local_filsz=$(du -b "${output}.gz" | cut -f1 || echo 0)
+	local_filsz=$(if [ -f "${output}".gz ]; then du -b "${output}.gz" | cut -f1; else echo 0; fi)
 	remote_filsz=$(curl "${BALENA_API_URL}/download" \
 			--head \
 			"${request_args[@]}" \
