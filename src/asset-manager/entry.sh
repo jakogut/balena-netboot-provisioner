@@ -29,6 +29,7 @@ download_balenaos() {
 	local output=$4
 	local filetype=".gz"
 	local local_filsz
+	local req
 	local remote_filsz
 	local request_args=(
 		--get
@@ -36,15 +37,19 @@ download_balenaos() {
 		--data "version=${version}"
 		--data "fileType=${filetype}"
 		--data "appId=${fleet_id}"
+		--fail
 	)
-	local_filsz=$(if [ -f "${output}".gz ]; then du -b "${output}.gz" | cut -f1; else echo 0; fi)
-	remote_filsz=$(curl "${BALENA_API_URL}/download" \
-			--head \
-			"${request_args[@]}" \
-		| grep -i content-length \
-		| cut -d' ' -f2 \
-		| tr -d '\r'
-	)
+	local_filsz=$(if [ -f "${output}".gz ]; then du -b "${output}.gz" | cut -f1; else echo -1; fi)
+	remote_filsz=0
+	req=$(curl "${BALENA_API_URL}/download" \
+		--head \
+		"${request_args[@]}") \
+		&& remote_filsz=$(
+			echo "${req}" \
+			| grep -i content-length \
+			| cut -d' ' -f2 \
+			| tr -d '\r'
+		)
 
 	# Skip the download if the existing filesize matches the remote.
 	# Unfortunately, the reported content-length from the image maker
@@ -52,15 +57,23 @@ download_balenaos() {
 	# Compute a delta and ensure it's below the threshold to work around this.
 	local filsz_delta=$(( remote_filsz - local_filsz ))
 	local filsz_delta_thresh=10
-	if [ "${filsz_delta#-}" -gt "${filsz_delta_thresh}" ]; then
-		curl "${BALENA_API_URL}/download" \
-			"${request_args[@]}" \
-			--output "${output}.gz"
+	if [ ! -f "${output}.gz" ] || [ "${filsz_delta#-}" -gt "${filsz_delta_thresh}" ]; then
+		if ! curl "${BALENA_API_URL}/download" \
+				"${request_args[@]}" \
+				--output "${output}.gz"; then
+			# remove the download if the request failed
+			rm -f "${output}.gz"
+		fi
 	else
 		echo "OS image already exists and size matches remote, skipping download"
 	fi
 
-	[ -f "${output}" ] || gunzip -c "${output}.gz" > "${output}"
+	if [ ! -f "${output}.gz" ]; then
+		echo "Image was not downloaded, exiting"
+		exit 1;
+	else
+		[ ! -f "${output}" ] && gunzip -c "${output}.gz" > "${output}"
+	fi
 }
 
 if [ -z "${FLEET_CONFIG}" ] || [[ ! "${FLEET_CONFIG}" = *:* ]]; then
