@@ -1,0 +1,181 @@
+---
+version: '2.1'
+
+volumes:
+  cert-manager-data: {}
+  certs-data: {}
+  pki-data: {}
+  netboot-data: {}
+
+# (TBC) source from somewhere
+x-default-environment: &default-environment
+  DNS_TLD: balena.local
+  ORG_UNIT: pixie
+  VERBOSE: true
+
+x-default-volumes-trait: &with-default-volumes
+  volumes:
+    - certs-data:/certs
+    - netboot-data:/var/tftp
+    - netboot-data:/var/assets
+
+x-default-privileges-trait: &with-default-privileges
+  cap_add:
+    - SYS_ADMIN
+    - SYS_RESOURCE
+  security_opt:
+    - apparmor:unconfined
+  tmpfs:
+    - /run
+    - /sys/fs/cgroup
+
+x-extended-privileges-trait: &with-extended-privileges
+  security_opt:
+    - apparmor:unconfined
+    - seccomp:unconfined
+
+x-network-privileges-trait: &with-network-privileges
+  cap_add:
+    - NET_ADMIN
+    - SYS_ADMIN
+    - SYS_RESOURCE
+
+x-base-service-definition: &base-service
+  restart: unless-stopped
+  extends:
+    service: base
+
+services:
+  # https://hub.docker.com/r/4km3/dnsmasq
+  dnsmasq:
+    <<: [
+      *with-default-volumes,
+      *with-network-privileges,
+      *with-default-privileges,
+      *base-service,
+    ]
+    image: 4km3/dnsmasq:2.85-r2
+    entrypoint:
+      - /bin/sh
+      - '-c'
+    command:
+      - |
+        set -exu
+
+        while ! [ -f /var/tftp/.ready ]; do sleep "$(( (RANDOM % 5) + 5 ))s"; done
+
+        dnsmasq \
+          --conf-file "" \
+          --no-daemon \
+          --port=0 \
+          --log-dhcp \
+          --dhcp-range="$(ip route | grep default | cut -d' ' -f3)",proxy \
+          --enable-tftp \
+          --tftp-root=/var/tftp \
+          --pxe-service=0,"Raspberry Pi Boot" \
+          --pxe-service=X86-64_EFI,"PXELINUX x86_64-efi",syslinux/efi64/syslinux.efi \
+          --pxe-service=BC_EFI,"PXELINUX x86_64-efi",syslinux/efi64/syslinux.efi
+
+    network_mode: host
+    depends_on:
+      - asset-manager
+    environment:
+      <<: *default-environment
+
+  # https://github.com/balena-io/open-balena-haproxy
+  haproxy:
+    <<: [
+      *with-default-volumes,
+      *with-default-privileges,
+      *base-service,
+    ]
+    build: src/haproxy
+    sysctls:
+      # https://github.com/docker-library/haproxy/issues/160
+      net.ipv4.ip_unprivileged_port_start: 0
+    healthcheck:
+      test: true | openssl s_client -connect localhost:443 -servername ${DNS_TLD}
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+    environment:
+      <<: *default-environment
+      LOGLEVEL: info
+
+  # https://hub.docker.com/_/nginx
+  nginx:
+    <<: [
+      *with-network-privileges,
+      *with-default-privileges,
+      *base-service,
+    ]
+    image: nginx:1.21-alpine
+    entrypoint:
+      - /bin/sh
+      - '-c'
+    command:
+      - |
+        set -exu
+
+        while ! [ -f /usr/share/nginx/html/.ready ]; do sleep "$(( (RANDOM % 5) + 5 ))s"; done
+
+        nginx -g 'daemon off;'
+
+    volumes:
+      - netboot-data:/usr/share/nginx/html:ro
+      - netboot-data:/var/assets
+    depends_on:
+      - asset-manager
+
+  # https://github.com/balena-io/cert-manager
+  # https://certbot.eff.org/docs/using.html
+  # https://certbot-dns-cloudflare.readthedocs.io/
+  cert-manager:
+    <<: *base-service
+    build: src/cert-manager
+    volumes:
+      - cert-manager-data:/etc/letsencrypt
+      - certs-data:/certs
+    depends_on:
+      - balena-ca
+    environment:
+      <<: *default-environment
+      # wildcard certificate for reverse proxy
+      SSH_KEY_NAMES: ','
+      SUBJECT_ALTERNATE_NAMES: '*'
+    labels:
+      io.balena.features.balena-api: 1
+      io.balena.features.supervisor-api: 1
+
+  # https://github.com/balena-io/ca-private
+  # https://github.com/cloudflare/cfssl/blob/master/doc/api/intro.txt
+  balena-ca:
+    <<: *base-service
+    image: balena/ca-private:v0.0.6
+    volumes:
+      - pki-data:/pki
+      - certs-data:/certs
+    environment:
+      <<: *default-environment
+    healthcheck:
+      test: curl --silent -I --fail localhost:8888
+      interval: 60s
+      timeout: 60s
+      retries: 10
+
+  # https://hub.docker.com/_/busybox
+  asset-manager:
+    <<: [
+      *with-default-volumes,
+      *base-service,
+    ]
+    privileged: true
+    build: src/asset-manager
+    depends_on:
+      - cert-manager
+    network_mode: host
+    environment:
+      <<: *default-environment
+    labels:
+      io.balena.features.balena-api: 1
+

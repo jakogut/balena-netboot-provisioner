@@ -1,68 +1,30 @@
-# Netboot
+# balena-pxe-boot
 
-## Setup
+Effortlessly provision your new devices with balenaOS unattended over the network using the PXE protocol.
 
-### Raspberry Pi 4
+## Deploying
 
-The Pi 4 has netboot capability built into the bootloader that's flashed into the EEPROM. Unfortunately, as of this writing, the bootloader defaults to booting from the SD card, falling back to USB booting, and will not attempt to boot from the network.
+As simple as `balena push [my-fleet-name]`
 
-In order to change this, we can use [rpi-imager](https://github.com/raspberrypi/rpi-imager). From the `Choose OS` menu, select `Misc utility images/Bootloader/Network Boot`. Choose an empty SD card to flash, and wait for the process to finish. Insert the flashed card into the Pi 4 and power it on. The green light will be solid until the process has finished, then will blink rapidly when the device can be powered off again.
+## Configuration
 
-### Fin (CM3+ Lite)
+The netboot server reads appId and apiKey pairs, delimited by colons, from the `FLEET_CONFIG` environment variable. Each pair is separated by a semicolon. This variable is required.
 
-The Fin with the CM3+ Lite requires a single firmware file on the boot partition contained on the eMMC in order to network boot. To start, leave the power disconnected, and connect the Fin to your PC using a micro USB cable to the debug port, next to the power jack. Use the [usbboot](https://github.com/raspberrypi/usbboot) tool to boot your Fin in OTG device mode, exposing the onboard eMMC as a mass storage device.
-
+For example:
 ```
-$ sudo ./rpiboot
-RPIBOOT: build-date Mar 25 2022 version 20220315~121405 1e27dd85
-Waiting for BCM2835/6/7/2711...
-Loading embedded: bootcode.bin
-Sending bootcode.bin
-Successful read 4 bytes
-Waiting for BCM2835/6/7/2711...
-Loading embedded: bootcode.bin
-Loading embedded: bootcode.bin
-Second stage boot server
-Loading embedded: start.elf
-File read: start.elf
-Second stage boot server done
+FLEET_CONFIG=[appId]:[apiKey];[appId]:[apiKey]
 ```
 
-After the tool finishes, you should see the eMMC exposed as an 8 GB block device.
+Only one appId per device type must be specified. If more than one fleet is being provisioned with the same device type, you'll need to switch your netboot server over from one fleet to the other, or setup multiple netboot servers on indepenent networks.
 
-```
-$ lsblk
-<snip>
-sdX           8:48   1  7.3G  0 disk
-```
+Upon startup, the netboot server application will download a configured image for the fleet you've specified, extract the kernel from it, and build an initramfs to install the image. The original kernel from the balenaOS release matching your device is used to ensure the required drivers are present.
 
-Repartition this device using fdisk, replacing `/dev/sdX` with the path to your block device.
+The netboot server runs dnsmasq in DHCP proxy mode, which only responds to BOOTP requests, and does not hand out addresses. Consequently, it's safe to run this on an existing network with a DHCP server.
 
-`fdisk /dev/sdX`
+By default, the installation script will perform a dry run and exit, to avoid destroying data. Once you're certain no machines on your network will boot the installer unintentionally, set the environment variable `DRY_RUN=false` on the dashboard, or using the CLI, for the netboot server. This will instruct the server to perform the installation for real, which **will destroy the data on any machine that runs it.**
 
-At the prompt:
-* Type `o` to create a new MBR partition table
-* Type `n` then `p` for primary, `1` for the first partition on the drive, press ENTER to accept the default first sector, then type `+200M` for the last sector.
-* Type `t`, then `c` to set the first partition to type `W95 FAT32 (LBA)`
-* Type `w` to write the partition table and exit
+Even with `DRY_RUN=false`, the installer will not write to a disk with an existing partition table by default. If you want to override this behavior, specify `CLOBBER=true` as an environment variable for the netboot server.
 
-Create and mount the filesystem for the boot partition:
-```
-$ mkfs.vfat /dev/sdX1
-$ mkdir /mnt/boot
-$ mount /dev/sdX1 /mnt/boot
-```
+## Usage
 
-Download `bootcode.bin` and write it to the boot partition:
-```
-$ curl -L \
-https://github.com/raspberrypi/firmware/raw/master/boot/bootcode.bin \
-    | sudo tee /mnt/boot/bootcode.bin > /dev/null
-```
-
-Sync, unmount the boot partition, and unplug your Fin.
-```
-$ sync && sudo umount /mnt/boot
-```
-
-(Special thanks to the wonderful [Arch Linux ARM](https://archlinuxarm.org)) project for the installation [instructions](https://archlinuxarm.org/platforms/armv8/broadcom/raspberry-pi-3) the above section is based on.)
+After the netboot server is configured and `DRY_RUN` is disabled, new devices can be provisioned simply by plugging them in and waiting for the installer to complete.

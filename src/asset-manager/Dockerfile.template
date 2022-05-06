@@ -1,0 +1,15 @@
+FROM --platform=%%BALENA_ARCH%% alpine AS base
+
+RUN apk add --update --no-cache \
+	bash \
+	binutils \
+	curl \
+	jq \
+	openssl \
+	util-linux-misc \
+	syslinux
+
+COPY init ./
+COPY *.sh ./
+
+CMD ./entry.sh

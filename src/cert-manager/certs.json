@@ -1,0 +1,21 @@
+[
+  {
+    "request": {
+      "key": {
+        "algo": "${key_algo}",
+        "size": ${key_size}
+      },
+      "hosts": ${hosts},
+      "names": [
+        {
+          "C": "${country}",
+          "L": "${locality_name}",
+          "O": "${org}",
+          "OU": "${org_unit}",
+          "ST": "${state}"
+        }
+      ],
+      "CN": "${TLD}"
+    }
+  }
+]
