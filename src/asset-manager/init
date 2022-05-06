@@ -78,5 +78,28 @@ printf "\nSyncing..." \
 	&& sync \
 	&& printf 'done\n\n'
 
+if [ "${install_disk}" != /dev/null ]; then
+	if [ -f /boot/config.json ]; then
+		partprobe
+
+		# Linux device names have a 'p' between the disk and partition number
+		# when the last character of the disk is a digit
+		last_char="$(printf '%s' ${install_disk} | tail -c 1)"
+		if [ "${last_char}" -eq "${last_char}" ] 2>/dev/null; then
+			partition="n1"
+		else
+			partition="1"
+		fi
+
+		echo "Copying config.json into boot partition"
+		if ! mount "${install_disk}${partition}" /mnt; then
+			echo "Unable to mount boot partition, exiting"
+			exit 1;
+		fi
+
+		cp /boot/config.json /mnt/
+	fi
+fi
+
 echo "Install finished, rebooting"
 reboot

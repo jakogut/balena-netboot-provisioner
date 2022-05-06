@@ -96,15 +96,36 @@ mount_image_part() {
 		fdisk -l "${image_path}" \
 		| grep "${image_path}${part_number}" \
 		| awk '{print $2}' )
+	# accounts for partitions marked bootable
+	if [ "${part_offset}" = "*" ]; then
+		part_offset=$(
+			fdisk -l "${image_path}" \
+			| grep "${image_path}${part_number}" \
+			| awk '{print $3}' )
+	fi
+
 	mount "${image_path}" \
 		-o "offset=$((part_offset * sector_size))" \
 		"${mountpoint}"
 }
 
 boot_part=1
+mount_image_part "${dl_path}" "${boot_part}" /mnt/
+
+device_type="$(jq -r '.slug' /mnt/boot/device-type.json || true)"
+flasher="$( if [ -f /mnt/balena-image-flasher ]; then echo true; else echo false; fi )"
+
+initramfs_srcdir="${asset_dir}/${fleet_id}/initramfs"
+mkdir -p "${initramfs_srcdir}"/{bin,boot,dev,etc,lib,mnt,proc,root}
+
+if [ "${flasher}" = true ]; then
+	cp /mnt/config.json "${initramfs_srcdir}/boot"
+fi
+
+umount /mnt
+
 roota_part=2
 mount_image_part "${dl_path}" "${roota_part}" /mnt/
-mount_image_part "${dl_path}" "${boot_part}" /mnt/mnt/boot
 
 image_path="${output_dir}/balenaos.img"
 # Technically, this test will fail if there is more than one match, but we
@@ -117,9 +138,6 @@ else
 	echo "Non-flasher image, symlink downloaded.img -> balenaos.img"
 	ln -sf downloaded.img "${image_path}"
 fi
-
-initramfs_srcdir="${asset_dir}/${fleet_id}/initramfs"
-mkdir -p "${initramfs_srcdir}"/{bin,dev,etc,lib,proc,root}
 
 local_ip=$(ip route get 1 | awk '{print $NF;exit}')
 nbsrv_domain="netboot.balena.local"
