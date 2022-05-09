@@ -130,7 +130,7 @@ mount_image_part() {
 boot_part=1
 mount_image_part "${dl_path}" "${boot_part}" /mnt/
 
-device_type="$(jq -r '.slug' /mnt/boot/device-type.json || true)"
+device_type="$(jq -r '.slug' /mnt/device-type.json || true)"
 flasher="$( if [ -f /mnt/balena-image-flasher ]; then echo true; else echo false; fi )"
 case "${device_type}" in
 	fincm3)
