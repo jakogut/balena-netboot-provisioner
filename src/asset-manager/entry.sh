@@ -74,6 +74,11 @@ download_balenaos() {
 	else
 		[ ! -f "${output}" ] && gunzip -c "${output}.gz" > "${output}"
 	fi
+
+	# If the disk image is invalid, delete it
+	if ! fdisk -l "${output}"; then
+		rm "${output}*"
+	fi
 }
 
 if [ -z "${FLEET_CONFIG}" ] || [[ ! "${FLEET_CONFIG}" = *:* ]]; then
