@@ -49,6 +49,8 @@ for m in ${MODULES}; do
 	modprobe "${m}"
 done
 
+ipconfig eth0
+
 install_disk=""
 for glob in ${TARGET_DISKS}; do
 	echo "Disks matching glob: ${glob}"
