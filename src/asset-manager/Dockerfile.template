@@ -1,5 +1,29 @@
-FROM --platform=%%BALENA_ARCH%% alpine AS base
+FROM debian:stable-20220328-slim AS build
 
+RUN apt-get update \
+	&& apt-get -y install \
+		build-essential \
+		gcc-arm-linux-gnueabi \
+		gcc-aarch64-linux-gnu \
+		wget \
+	&& rm -rf /var/cache/apt
+
+ARG pkgname=mkinitcpio-nfs-utils
+ARG pkgver=0.3
+RUN wget https://sources.archlinux.org/other/mkinitcpio/${pkgname}-${pkgver}.tar.xz
+RUN tar xvf ${pkgname}-${pkgver}.tar.xz
+RUN make CFLAGS=-static -C ${pkgname}-${pkgver} ipconfig \
+	&& cp ${pkgname}-${pkgver}/ipconfig/ipconfig ipconfig-amd64 \
+	&& make -C ${pkgname}-${pkgver} clean
+RUN make CC=arm-linux-gnueabi-gcc CFLAGS=-static \-C ${pkgname}-${pkgver} ipconfig \
+	&& cp ${pkgname}-${pkgver}/ipconfig/ipconfig ipconfig-arm \
+	&& make -C ${pkgname}-${pkgver} clean
+RUN make CC=aarch64-linux-gnu-gcc CFLAGS=-static -C ${pkgname}-${pkgver} ipconfig \
+	&& cp ${pkgname}-${pkgver}/ipconfig/ipconfig ipconfig-aarch64 \
+	&& make -C ${pkgname}-${pkgver} clean
+
+FROM alpine AS run
+		
 RUN apk add --update --no-cache \
 	bash \
 	binutils \
@@ -9,6 +33,7 @@ RUN apk add --update --no-cache \
 	util-linux-misc \
 	syslinux
 
+COPY --from=build ipconfig-* ./
 COPY init ./
 COPY *.sh ./
 
