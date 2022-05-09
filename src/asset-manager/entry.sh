@@ -133,9 +133,18 @@ mount_image_part "${dl_path}" "${boot_part}" /mnt/
 device_type="$(jq -r '.slug' /mnt/device-type.json || true)"
 flasher="$( if [ -f /mnt/balena-image-flasher ]; then echo true; else echo false; fi )"
 case "${device_type}" in
+	raspberrypi3)
+		;&
+	raspberrypi3-64)
+		;&
 	fincm3)
+		;&
+	raspberrypi4-64)
 		# copy Pi firmware
-		cp -rf /mnt/* /var/tftp/
+		cp -rf /mnt/*.dtb /var/tftp/
+		cp -rf /mnt/overlays /var/tftp/
+		cp /mnt/start*.elf /var/tftp
+		cp /mnt/fixup*.dat /var/tftp
 		;;
 	*)
 		;;
