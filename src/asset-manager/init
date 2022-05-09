@@ -45,6 +45,10 @@ cat << 'EOF'
 
 EOF
 
+for m in ${MODULES}; do
+	modprobe "${m}"
+done
+
 install_disk=""
 for glob in ${TARGET_DISKS}; do
 	echo "Disks matching glob: ${glob}"

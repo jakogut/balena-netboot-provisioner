@@ -190,9 +190,15 @@ mkdir -p "${initramfs_certs_path}"
 cp /certs/ca-bundle.pem "${initramfs_certs_path}/ca-certificates.crt"
 
 utils=(curl)
+modules=()
+
 
 # copy utilities from the hostapp into initramfs
-populate_initramfs "${utils[@]}" "${initramfs_srcdir}" /mnt
+populate_initramfs \
+	"${utils[*]}" \
+	"${modules[*]}" \
+	"${initramfs_srcdir}" \
+	/mnt
 generate_initramfs "${initramfs_srcdir}" "${output_dir}/initramfs.img.gz"
 
 rm -rf /var/tftp/boot
