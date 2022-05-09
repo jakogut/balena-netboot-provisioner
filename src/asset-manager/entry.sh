@@ -192,6 +192,27 @@ cp /certs/ca-bundle.pem "${initramfs_certs_path}/ca-certificates.crt"
 utils=(curl)
 modules=()
 
+case "${device_type}" in
+	raspberrypi3)
+		;&
+	fincm3)
+		# RPi network adapter and Fin RTC
+		modules+=(smsc95xx)
+		cp ipconfig-arm "${initramfs_srcdir}/bin/ipconfig"
+		;;
+	raspberrypi3-64)
+		;&
+	raspberrypi4-64)
+		cp ipconfig-aarch64 "${initramfs_srcdir}/bin/ipconfig"
+		;;
+	intel-nuc)
+		;&
+	genericx86-64-ext)
+		cp ipconfig-amd64 "${initramfs_srcdir}/bin/ipconfig"
+		;;
+	*)
+		;;
+esac
 
 # copy utilities from the hostapp into initramfs
 populate_initramfs \
@@ -201,34 +222,67 @@ populate_initramfs \
 	/mnt
 generate_initramfs "${initramfs_srcdir}" "${output_dir}/initramfs.img.gz"
 
-rm -rf /var/tftp/boot
+install_boot_files() {
+	local device_type=$1
+	local kernel_img_type
+	local kernel_dest
+	local initramfs_dest
+	local append
+	local init_args
+	local pxelinux_cfg_dir
+	append=(
+		"ip=:::::eth0:dhcp"
+		"console=tty0"
+		"console=ttyAMA0"
+		"DRY_RUN=${DRY_RUN}"
+		"CLOBBER=${CLOBBER}"
+		"MODULES=${modules[*]}"
+	)
+	init_args=(
+		"https://${nbsrv_domain}/${fleet_id}/balenaos.img"
+	)
+	case "${device_type}" in
+		fincm3)
+			kernel_img_type=zImage
+			kernel_dest=/var/tftp/zImage
+			initramfs_dest=/var/tftp/initramfs.img.gz
+			ln -sf zImage /var/tftp/kernel7.img
 
-# Create pxelinux files for x86_64-efi and PC BIOS
-cp -rf /usr/share/syslinux/ /var/tftp/
+			echo "enable_uart=1" > /var/tftp/config.txt
+			echo "initramfs initramfs.img.gz followkernel" >> /var/tftp/config.txt
+			echo "${append[*]} -- ${init_args[*]}" > /var/tftp/cmdline.txt
+			;;
+		intel-nuc)
+			;&
+		genericx86-64-ext)
+			kernel_img_type=bzImage
+			kernel_dest=/var/tftp/syslinux/efi64
+			initramfs_dest=/var/tftp/syslinux/efi64/initramfs.img.gz
+			pxelinux_cfg_dir=/var/tftp/syslinux/efi64/pxelinux.cfg
+			# syslinux grabs our initramfs over HTTP
+			append+=("initrd=http://${local_ip}/syslinux/efi64/initramfs.img.gz")
+			mkdir -p "${pxelinux_cfg_dir}"
+			ln -sf ../../pxelinux.cfg "${pxelinux_cfg_dir}/default"
+			# Create pxelinux files for x86_64-efi and PC BIOS
+			cp -rf /usr/share/syslinux/ /var/tftp/
 
-append=(
-	"initrd=http://${local_ip}/syslinux/efi64/initramfs.img.gz"
-	"ip=:::::eth0:dhcp"
-	"console=ttyS0"
-	"DRY_RUN=${DRY_RUN}"
-	"CLOBBER=${CLOBBER}"
-)
-init_args=(
-	"https://${nbsrv_domain}/${fleet_id}/balenaos.img"
-)
-cat > /var/tftp/syslinux/pxelinux.cfg << EOF
+			cat > /var/tftp/syslinux/pxelinux.cfg << EOF
 DEFAULT flasher
 LABEL flasher
-	LINUX http://${local_ip}/syslinux/efi64/bzImage
+	LINUX http://${local_ip}/syslinux/efi64/${kernel_img_type}
 	APPEND ${append[@]} -- ${init_args[@]}
 EOF
 
-pxelinux_cfg_dir=/var/tftp/syslinux/efi64/pxelinux.cfg
-mkdir -p "${pxelinux_cfg_dir}"
-ln -sf ../../pxelinux.cfg "${pxelinux_cfg_dir}/default"
 
-cp /mnt/boot/bzImage /var/tftp/syslinux/efi64/
-ln -sf "${output_dir}/initramfs.img.gz" /var/tftp/syslinux/efi64/initramfs.img.gz
+			;;
+	esac
+
+	cp "/mnt/boot/${kernel_img_type}" "${kernel_dest}"
+	ln -sf "${output_dir}/initramfs.img.gz" "${initramfs_dest}"
+}
+
+echo "device_type: ${device_type}"
+install_boot_files "${device_type}"
 
 # signal done
 touch /var/tftp/.ready
