@@ -189,7 +189,7 @@ initramfs_certs_path="${initramfs_srcdir}/etc/ssl/certs"
 mkdir -p "${initramfs_certs_path}"
 cp /certs/ca-bundle.pem "${initramfs_certs_path}/ca-certificates.crt"
 
-utils=(curl)
+utils=(curl date)
 modules=()
 
 case "${device_type}" in

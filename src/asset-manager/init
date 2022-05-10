@@ -90,7 +90,31 @@ if [ "${existing_partitions}" -gt 0 ] && [ "${CLOBBER}" != "true" ]; then
 	exit 1;
 fi
 
-curl "${image_path}" --progress-bar | dd of="${install_disk}" bs=4096
+if ! curl --head \
+	  --fail \
+	  "${image_path}"; then
+	# The request failed, likely because the device doesn't have an RTC and
+	# the date is unset, causing the certificate to not be validated.
+	# Set the date from the header sent in the server response before
+	# trying again.
+	server_date="$(
+		curl --head http://netboot.balena.local \
+		| grep -i date \
+		| cut -d: -f2- | xargs \
+		)"
+
+	if [ -n "${server_date}" ]; then
+		date -s "${server_date}"
+	else
+		echo "warning: unable to query netboot server for date"
+	fi
+fi
+
+curl \
+	--fail \
+	--progress-bar \
+	"${image_path}" \
+	| dd of="${install_disk}" bs=4096
 
 printf "\nSyncing..." \
 	&& sync \
