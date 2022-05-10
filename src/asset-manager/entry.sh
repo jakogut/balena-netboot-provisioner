@@ -230,10 +230,10 @@ install_boot_files() {
 	local append
 	local init_args
 	local pxelinux_cfg_dir
+	local serial_console=ttyS0
 	append=(
 		"ip=:::::eth0:dhcp"
 		"console=tty0"
-		"console=ttyAMA0"
 		"DRY_RUN=${DRY_RUN}"
 		"CLOBBER=${CLOBBER}"
 		"MODULES=${modules[*]}"
@@ -243,6 +243,9 @@ install_boot_files() {
 	)
 	case "${device_type}" in
 		fincm3)
+			serial_console=ttyAMA0
+			append+=("console=${serial_console}")
+
 			kernel_img_type=zImage
 			kernel_dest=/var/tftp/zImage
 			initramfs_dest=/var/tftp/initramfs.img.gz
@@ -261,6 +264,8 @@ install_boot_files() {
 			pxelinux_cfg_dir=/var/tftp/syslinux/efi64/pxelinux.cfg
 			# syslinux grabs our initramfs over HTTP
 			append+=("initrd=http://${local_ip}/syslinux/efi64/initramfs.img.gz")
+			append+=("console=${serial_console}")
+
 			mkdir -p "${pxelinux_cfg_dir}"
 			ln -sf ../../pxelinux.cfg "${pxelinux_cfg_dir}/default"
 			# Create pxelinux files for x86_64-efi and PC BIOS
