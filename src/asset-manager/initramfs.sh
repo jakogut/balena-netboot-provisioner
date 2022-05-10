@@ -27,16 +27,21 @@ is_absolute() {
 }
 
 install_binary() {
+	local binary="${1}"
 	local rootdir="${2}"
+	local bindir hostapp_root
 	local outdir="${3}"
 	local path
 	local deps
 	local src
 	local dest
 
+	bindir=$(dirname "$(find_binary "sh" "${rootdir}/balena/overlay2")")
+	hostapp_root=$(dirname "${bindir}")
+
 	path="$(find_binary "$1" "${rootdir}")"
 	if [ -z "${path}" ]; then
-		echo "Unable to find binary: '${b}'"
+		echo "Unable to find binary: '${binary}'"
 		exit 1;
 	fi
 
@@ -49,7 +54,11 @@ install_binary() {
 		if [ -L "${path}" ]; then
 			link="$(readlink "${path}")"
 			if is_absolute "${link}"; then
-				echo "${rootdir}${link}"
+				if [[ "${path}" = ${rootdir}/balena/overlay2/* ]]; then
+					echo "${hostapp_root}${link}"
+				else
+					echo "${rootdir}${link}"
+				fi
 			else
 				readlink -f "${path}"
 			fi
