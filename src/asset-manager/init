@@ -116,10 +116,6 @@ curl \
 	"${image_path}" \
 	| dd of="${install_disk}" bs=4096
 
-printf "\nSyncing..." \
-	&& sync \
-	&& printf 'done\n\n'
-
 if [ "${install_disk}" != /dev/null ]; then
 	if [ -f /boot/config.json ]; then
 		partprobe
@@ -142,6 +138,10 @@ if [ "${install_disk}" != /dev/null ]; then
 		cp /boot/config.json /mnt/
 	fi
 fi
+
+printf "\nSyncing..." \
+	&& sync \
+	&& printf 'done\n\n'
 
 echo "Install finished, rebooting"
 reboot
