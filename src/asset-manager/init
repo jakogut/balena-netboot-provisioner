@@ -110,11 +110,39 @@ if ! curl --head \
 	fi
 fi
 
-curl \
-	--fail \
-	--progress-bar \
-	"${image_path}" \
-	| dd of="${install_disk}" bs=4096
+erase_partition_table() {
+	# This erases MBR as well as GPT signatures
+	disk_size_bytes=$(
+		grep "$(basename "${1}")$" /proc/partitions \
+			| awk '{print $3}'
+	)
+	dd if=/dev/zero of="${1}" bs=512 count=34 2>/dev/null
+	dd if=/dev/zero of="${1}" bs=512 count=34 \
+		seek=$(( disk_size_bytes / 512 - 34 )) \
+		2>/dev/null
+	sync
+}
+
+mkfifo image_data
+dd if=image_data of="${install_disk}" 2>/dev/null &
+
+if ! curl --fail \
+	  --progress-bar \
+	  "${image_path}" \
+	  --output image_data; then
+	wait
+
+	msg="Imaging failed, erasing partition table"
+	if [ "${DRY_RUN}" = true ]; then
+		echo "${msg} [DRY RUN]"
+	else
+		echo "${msg}"
+		erase_partition_table "${install_disk}"
+	fi
+	exit 1
+else
+	wait
+fi
 
 if [ "${install_disk}" != /dev/null ]; then
 	if [ -f /boot/config.json ]; then
