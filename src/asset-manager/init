@@ -123,15 +123,32 @@ erase_partition_table() {
 	sync
 }
 
-mkfifo image_data
-dd if=image_data of="${install_disk}" 2>/dev/null &
+/bin/sh
 
-if ! curl --fail \
-	  --progress-bar \
-	  "${image_path}" \
-	  --output image_data; then
+mkfifo image_data
+
+status=-1
+max_retries=5
+for i in $(seq 1 $max_retries); do
+	dd if=image_data of="${install_disk}" 2>/dev/null &
+
+	if ! [ "${i}" -eq 1 ]; then
+		echo "Retrying...$i out of $max_retries"
+	fi
+
+	curl \
+		--fail \
+		--progress-bar \
+		"${image_path}" \
+		--output image_data
+
+	status=$?
 	wait
 
+	if [ $status -eq 0 ]; then break; fi	
+done
+
+if ! [ $status -eq 0 ]; then
 	msg="Imaging failed, erasing partition table"
 	if [ "${DRY_RUN}" = true ]; then
 		echo "${msg} [DRY RUN]"
@@ -140,8 +157,6 @@ if ! curl --fail \
 		erase_partition_table "${install_disk}"
 	fi
 	exit 1
-else
-	wait
 fi
 
 if [ "${install_disk}" != /dev/null ]; then
