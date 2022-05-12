@@ -139,6 +139,7 @@ for i in $(seq 1 $max_retries); do
 	curl \
 		--fail \
 		--progress-bar \
+		--compressed \
 		"${image_path}" \
 		--output image_data
 
