@@ -1,6 +1,6 @@
-# balena-pxe-boot
+# balena-netboot-provisioner
 
-Effortlessly provision your new devices with balenaOS unattended over the network using the PXE protocol.
+Effortlessly provision your new devices with balenaOS unattended over the network.
 
 ## Deploying
 
